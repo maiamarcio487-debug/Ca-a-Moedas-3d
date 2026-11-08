@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#071426">
+<title>Caça-Moedas 3D</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071426;font-family:system-ui,Arial;color:#fff;touch-action:none}
+#game{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;padding:16px;display:flex;flex-direction:column;justify-content:space-between}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.pill{background:#071426cc;border:1px solid #ffffff30;border-radius:14px;padding:9px 13px;font-weight:800;box-shadow:0 5px 20px #0005}
+#score{font-size:20px;color:#ffd84d}#best{font-size:12px;color:#b9d8ff}
+#message{position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);width:min(88%,390px);text-align:center;background:#071426eF;border:1px solid #ffffff35;border-radius:22px;padding:22px;box-shadow:0 15px 60px #0009;pointer-events:auto}
+h1{font-size:30px;line-height:1.05;margin:0 0 8px;color:#ffd84d;text-shadow:0 3px 0 #9b5b00}
+p{color:#d9e8ff;line-height:1.45;margin:8px 0 16px}
+button{border:0;border-radius:15px;background:linear-gradient(180deg,#ffe36a,#ffad16);color:#281600;font-size:17px;font-weight:900;padding:13px 22px;box-shadow:0 5px 0 #9c5c08;cursor:pointer}
+#controls{display:flex;justify-content:space-between;align-items:end;padding:0 4px 12px;pointer-events:auto}
+.pad{display:flex;gap:12px}
+.ctrl{width:68px;height:60px;font-size:25px;background:#0b2442dd;border:1px solid #9bc8ff77;color:white;box-shadow:0 5px 0 #020b18}
+#jump{width:90px;background:linear-gradient(180deg,#54dcff,#1675dc);color:#00172d;box-shadow:0 5px 0 #084c91}
+.small{font-size:12px;color:#a9c4e8}
+@media(min-width:700px){#controls{max-width:560px;margin:auto;width:100%}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+ <div class="top">
+  <div class="pill"><div id="score">🪙 0</div><div id="best">RECORDE: 0</div></div>
+  <div class="pill">CAÇA-MOEDAS <span style="color:#ffd84d">3D</span></div>
+ </div>
+ <div id="message">
+  <h1>CAÇA-MOEDAS 3D</h1>
+  <p>Corra pela pista, pegue moedas douradas e desvie dos blocos. Use as setas ou os botões na tela!</p>
+  <button id="start">JOGAR AGORA</button>
+  <div class="small" style="margin-top:12px">Protótipo gratuito • Feito para celular</div>
+ </div>
+ <div id="controls">
+  <div class="pad">
+   <button class="ctrl" id="left" aria-label="Mover para esquerda">◀</button>
+   <button class="ctrl" id="right" aria-label="Mover para direita">▶</button>
+  </div>
+  <button class="ctrl" id="jump">PULAR ⤒</button>
+ </div>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const canvas=document.querySelector('#game');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.15;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x071426);
+scene.fog=new THREE.Fog(0x071426,22,85);
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,150);
+camera.position.set(0,5.4,10);
+const hemi=new THREE.HemisphereLight(0x9bcaff,0x17243a,2.1);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffffff,2.5);sun.position.set(-4,10,7);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const gold=new THREE.MeshStandardMaterial({color:0xffc928,metalness:.78,roughness:.22,emissive:0x6b3500,emissiveIntensity:.25});
+const roadMat=new THREE.MeshStandardMaterial({color:0x142b48,metalness:.15,roughness:.82});
+const lineMat=new THREE.MeshStandardMaterial({color:0x42cfff,emissive:0x087bb2,emissiveIntensity:1.1});
+const playerMat=new THREE.MeshStandardMaterial({color:0x29c7ff,metalness:.25,roughness:.28});
+const obstacleMat=new THREE.MeshStandardMaterial({color:0xff4d5c,metalness:.18,roughness:.45});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0x071426,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.18;ground.position.z=-35;ground.receiveShadow=true;scene.add(ground);
+const road=new THREE.Mesh(new THREE.BoxGeometry(8,.25,120),roadMat);road.position.set(0,-.05,-35);road.receiveShadow=true;scene.add(road);
+for(let x of [-4.05,4.05]){let rail=new THREE.Mesh(new THREE.BoxGeometry(.12,.25,120),lineMat);rail.position.set(x,.12,-35);scene.add(rail)}
+for(let x of [-1.33,1.33]){for(let z=15;z>-95;z-=6){let stripe=new THREE.Mesh(new THREE.BoxGeometry(.035,.02,2.4),lineMat);stripe.position.set(x,.09,z);scene.add(stripe)}}
+const player=new THREE.Group();scene.add(player);
+const body=new THREE.Mesh(new THREE.BoxGeometry(.78,1.05,.62),playerMat);body.position.y=.75;body.castShadow=true;player.add(body);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.34,20,16),new THREE.MeshStandardMaterial({color:0xffd2a1,roughness:.7}));head.position.y=1.48;head.castShadow=true;player.add(head);
+const visor=new THREE.Mesh(new THREE.BoxGeometry(.48,.12,.08),new THREE.MeshStandardMaterial({color:0x09233b,metalness:.4,roughness:.2}));visor.position.set(0,1.51,-.3);player.add(visor);
+const lanes=[-2.55,0,2.55];let lane=1,score=0,best=Number(localStorage.getItem('coin3dBest')||0),running=false,over=false,speed=17,spawn=0,jumpV=0;
+document.querySelector('#best').textContent='RECORDE: '+best;
+const items=[];
+function makeCoin(x,z){const g=new THREE.Group();const coin=new THREE.Mesh(new THREE.TorusGeometry(.36,.12,10,24),gold);coin.rotation.y=Math.PI/2;coin.castShadow=true;g.add(coin);const core=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,.07,24),gold);core.rotation.z=Math.PI/2;g.add(core);g.position.set(x,.95,z);scene.add(g);items.push({obj:g,type:'coin',taken:false})}
+function makeObstacle(x,z){const m=new THREE.Mesh(new THREE.BoxGeometry(1.05,1.2,.9),obstacleMat);m.position.set(x,.62,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);items.push({obj:m,type:'block',taken:false})}
+function reset(){for(const it of items)scene.remove(it.obj);items.length=0;score=0;lane=1;speed=17;spawn=0;jumpV=0;player.position.set(0,0,3);document.querySelector('#score').textContent='🪙 0';}
+function move(d){if(!running)return;lane=Math.max(0,Math.min(2,lane+d))}
+function jump(){if(running&&player.position.y<.02)jumpV=8.5}
+function end(){running=false;over=true;if(score>best){best=score;localStorage.setItem('coin3dBest',best);document.querySelector('#best').textContent='RECORDE: '+best}document.querySelector('#message').innerHTML=`<h1>FIM DE JOGO!</h1><p>Você coletou <b style="color:#ffd84d">${score}</b> moedas.<br>Seu recorde: ${best}</p><button id="again">JOGAR NOVAMENTE</button>`;document.querySelector('#again').onclick=start}
+function start(){reset();running=true;over=false;document.querySelector('#message').style.display='none'}
+document.querySelector('#start').onclick=start;
+document.querySelector('#left').onpointerdown=e=>{e.preventDefault();move(-1)};
+document.querySelector('#right').onpointerdown=e=>{e.preventDefault();move(1)};
+document.querySelector('#jump').onpointerdown=e=>{e.preventDefault();jump()};
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')move(-1);if(e.key==='ArrowRight'||e.key==='d')move(1);if(e.key==='ArrowUp'||e.key===' ')jump();if(e.key==='Enter'&&!running)start()});
+let last=performance.now();
+function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.04);last=now;
+ if(running){
+  player.position.x+=(lanes[lane]-player.position.x)*Math.min(1,dt*12);
+  jumpV-=22*dt;player.position.y=Math.max(0,player.position.y+jumpV*dt);if(player.position.y===0)jumpV=0;
+  player.rotation.z=(lanes[lane]-player.position.x)*-.045;
+  speed=Math.min(27,speed+dt*.22);spawn-=dt;
+  if(spawn<=0){let z=-75;let c=Math.floor(Math.random()*3),b=Math.floor(Math.random()*3);if(Math.random()<.82){for(let i=0;i<4;i++)makeCoin(lanes[c],z-i*2.2)}if(Math.random()<.58)makeObstacle(lanes[b],z-7);spawn=Math.max(.72,1.35-(speed-17)*.035)}
+  for(let i=items.length-1;i>=0;i--){const it=items[i];it.obj.position.z+=speed*dt;if(it.type==='coin'){it.obj.rotation.y+=dt*3.8;it.obj.rotation.x+=dt*1.4}
+   const dx=Math.abs(it.obj.position.x-player.position.x),dz=Math.abs(it.obj.position.z-player.position.z);
+   if(!it.taken&&dx<.85&&dz<.85){if(it.type==='coin'){it.taken=true;scene.remove(it.obj);score++;document.querySelector('#score').textContent='🪙 '+score}else if(player.position.y<.55){end()}}
+   if(it.obj.position.z>12||it.taken){scene.remove(it.obj);items.splice(i,1)}
+  }
+  camera.position.x+=(player.position.x*.22-camera.position.x)*dt*2;camera.lookAt(player.position.x*.18,1.0,-5);
+ }
+ renderer.render(scene,camera);
+}
+requestAnimationFrame(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2))});
+</script>
+</body>
+</html>
